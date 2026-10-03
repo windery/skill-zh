@@ -2,14 +2,14 @@
 
 [English](README.en.md) · [更新记录](CHANGELOG.md)
 
-装了一堆 skill，菜单里的简介全是英文，看着费劲。skill-zh 是一个 Claude Code 插件：装或更新 skill 之后，它在后台把英文简介翻成中文，加在原文前面。
+装了一堆 skill，菜单里的简介全是英文，看着费劲。skill-zh 是一个 Claude Code 插件：装或更新 skill 之后，它在后台把英文简介完整翻译成中文。
 
 ```text
 之前：Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this" ...
-之后：疑难 bug 和性能问题的诊断循环。用于用户要求诊断问题或报告功能异常、报错、失败或性能低下。 ｜ EN: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this" ...
+之后：用于诊断困难的 bug 和性能回归的诊断流程。在用户说 "diagnose"/"debug this"、或报告某些东西已损坏/抛出异常/失败/运行缓慢时使用。
 ```
 
-英文原文一个字不删，所以 skill 什么时候被触发不受影响。
+是完整翻译，不是一句话概括。「什么时候用」的条件一条不少，引号里的触发词、命令和名字保持原样，所以 skill 照样能被正常触发。英文原文备份在本地，随时能改回去。
 
 ## 安装
 
@@ -76,18 +76,20 @@ flowchart LR
 ```
 
 1. **钩子触发**。插件挂了 `SessionStart` 和 `PostToolUse`（Bash）两个钩子，都是 `async`，在后台跑，不卡会话。Bash 命令看起来像在装或更新 skill，才继续往下走。
-2. **扫描**。读每个 `SKILL.md` 开头的 `description`，分成已汉化（带 ` ｜ EN: `）、本来就是中文（中文字数不少于英文单词数）和待翻译三类。只夹了几个中文触发词的英文简介，也算待翻译。
+2. **扫描**。读每个 `SKILL.md` 开头的 `description`，分成已汉化、本来就是中文（中文字数不少于英文单词数）和待翻译三类。只夹了几个中文触发词的英文简介，也算待翻译。「已汉化」不看文件里写了什么，而是看简介是不是还和我们当初写进去的译文一模一样：作者更新了 skill（又变回英文）会重新翻译；你手动改过的中文算你自己的，不会被覆盖，也不会被改回英文。
 3. **起独立进程**。有待翻译的，就单独起一个进程去翻。为什么不直接在钩子里翻：会话结束时，Claude Code 会把还在跑的后台钩子取消掉，翻译就会半途被杀。用 `--debug` 看得到这条 `Hook SessionStart:startup cancelled`。独立进程不在钩子的进程组里，会话关了也能跑完。
-4. **翻译**。用你自己的 Claude Code 登录调用 `claude -p --model haiku`，每批 15 个，要求只返回 JSON。这个子会话不加载任何设置、不给工具，里面没有插件也没有钩子，不会反过来又触发翻译。
-5. **改写**。把 `description` 换成一行 `中文 ｜ EN: 英文原文`，其他字段和正文一个字节都不动。写回前重新解析一遍，确认简介变成了新值、其他字段没变，才真正写回。
-6. **长度保护**。Codex 等工具要求 `description` 不超过 1024 个字符，超了整个 skill 都加载不了。加上中文会超长时，先截短中文；原文本身就快到上限的，直接跳过。
-7. **备份和并发**。写回前先把原件存到 `~/.claude/skill-zh/originals/`。几个会话同时打开时，用文件锁保证只有一个进程在翻译。
+4. **翻译**。用你自己的 Claude Code 登录调用 `claude -p --model haiku`，每批 10 个，要求完整翻译、保留引号里的触发词。译文按「`@@@ 键名` 加一段译文」的纯文本格式返回，不用 JSON：译文里常带英文引号，模型往往不转义，整段 JSON 就坏了。这个子会话不加载任何设置、不给工具，里面没有插件也没有钩子，不会反过来又触发翻译。
+5. **改写**。把 `description` 换成一行中文译文，其他字段和正文一个字节都不动。写回前重新解析一遍，确认简介变成了新值、其他字段没变，才真正写回。
+6. **长度保护**。Codex 等工具要求 `description` 不超过 1024 个字符，超了整个 skill 都加载不了。译文超长就不写，保持原样。
+7. **备份和并发**。写回前先把原件和写进去的译文都存到 `~/.claude/skill-zh/originals/`。几个会话同时打开时，用文件锁保证只有一个进程在翻译。
 
 skill 更新时简介会被覆盖回英文，下次开会话会自动重新翻译。
 
-### 为什么不直接把简介换成中文
+### 为什么是完整翻译，不是一句话概括
 
-Claude Code 里的 `description` 有两个用途：在菜单里给人看，也给模型判断什么时候该用这个 skill。它没有单独的「显示用简介」字段。整段换成中文，作者写的英文触发词（比如 "diagnose"、"debug this"）就没了，skill 可能就不会自动触发了。保留原文、中文放前面：菜单显示不全时先看到中文，模型照样读得到全部英文。
+Claude Code 里的 `description` 有两个用途：在菜单里给人看，也给模型判断什么时候该用这个 skill。它没有单独的「显示用简介」字段。所以译文要同时满足两头：给人看，要是中文；给模型判断，就不能丢掉作者写的使用条件和触发词。一句话概括会把这些压缩掉，skill 就可能不再自动触发。完整翻译、引号里的原话保留原文，两头都顾得上。
+
+0.1 和 0.2 版用的是「一句话概括 ｜ EN: 英文原文」的双语格式。升级后，这些简介会按备份里的英文原文重新完整翻译一遍，不是简单地删掉英文那一半。
 
 ## 管哪些目录
 
@@ -137,12 +139,12 @@ skill-zh/
 │   └── translate_hook.py    钩子入口，永远以 0 退出
 ├── skills/                  /skill-zh:status、translate、restore 三个命令
 ├── skill_zh/                核心代码
-│   ├── catalog.py           找 skill、判断状态、拼中英文简介
+│   ├── catalog.py           找 skill、判断每个简介的状态
 │   ├── commands.py          status / translate / restore 三个操作
 │   ├── config.py            配置项和要管的目录
 │   ├── frontmatter.py       读写 SKILL.md 里的 description
 │   ├── hook.py              钩子逻辑，起独立的翻译进程
-│   ├── state.py             状态目录、日志、锁、备份
+│   ├── state.py             状态目录、日志、锁、原件和译文记录
 │   ├── translator.py        调用 claude -p 翻译
 │   └── cli.py               命令行
 └── tests/

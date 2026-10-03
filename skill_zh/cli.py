@@ -14,7 +14,7 @@ from skill_zh.state import log_path
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="skill-zh",
-        description="给英文 skill 简介补上中文说明（英文原文保留，触发词不变）。",
+        description="把英文 skill 简介完整翻译成中文（保留触发词，原文可随时恢复）。",
     )
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", metavar="{status,translate,restore}")
@@ -57,8 +57,8 @@ def _translate(options) -> int:
     if not report.translated and not report.failed:
         print("没有需要翻译的 skill")
         return 0
-    for name, summary in report.translated:
-        print(f"{name}：{summary}")
+    for name, translation in report.translated:
+        print(f"{name}：{translation}")
     for name, reason in report.failed:
         print(f"{name}：{reason}")
     print(f"本次汉化 {len(report.translated)} / {len(report.translated) + len(report.failed)} 个")

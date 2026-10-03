@@ -5,13 +5,18 @@ from skill_zh import translator
 
 def test_parse_reply_keeps_only_usable_entries():
     batch = {"0:a": "x", "1:b": "y", "2:c": "z"}
-    reply = 'Sure!\n{"0:a": "中文 说明\\n", "1:b": "no chinese", "9:z": "多余的键"}\nDone.'
-    assert translator.parse_reply(reply, batch) == {"0:a": "中文 说明"}
+    reply = (
+        "Sure, here you go:\n```text\n"
+        '@@@ 0:a\n用户说 "debug this" 时使用，\n  跨两行也行\n\n'
+        "@@@ 1:b\nno chinese here\n"
+        "@@@ 9:z\n多余的键\n```\n"
+    )
+    assert translator.parse_reply(reply, batch) == {"0:a": '用户说 "debug this" 时使用， 跨两行也行'}
 
 
 def test_parse_reply_tolerates_garbage(env):
     assert translator.parse_reply("I can't do that.", {"0:a": "x"}) == {}
-    assert translator.parse_reply("[1, 2]", {"0:a": "x"}) == {}
+    assert translator.parse_reply('{"0:a": "旧的 JSON 格式"}', {"0:a": "x"}) == {}
 
 
 def test_translate_batches_requests(env, monkeypatch):
@@ -19,7 +24,7 @@ def test_translate_batches_requests(env, monkeypatch):
 
     def fake_call(prompt, model):
         prompts.append((prompt, model))
-        return "{" + ",".join(f'"{i}": "译文"' for i in range(40)) + "}"
+        return "".join(f"@@@ {i}\n译文\n" for i in range(40))
 
     monkeypatch.setattr(translator, "_call_claude", fake_call)
     descriptions = {str(i): f"English {i}" for i in range(translator.BATCH_SIZE + 1)}
@@ -30,7 +35,8 @@ def test_translate_batches_requests(env, monkeypatch):
 
 
 def test_failed_batch_is_skipped_not_fatal(env, monkeypatch):
-    replies = iter([subprocess.TimeoutExpired("claude", 1), '{"15": "译文"}'])
+    last = str(translator.BATCH_SIZE)  # the only key in the second batch
+    replies = iter([subprocess.TimeoutExpired("claude", 1), f"@@@ {last}\n译文\n"])
 
     def fake_call(prompt, model):
         reply = next(replies)
@@ -40,7 +46,7 @@ def test_failed_batch_is_skipped_not_fatal(env, monkeypatch):
 
     monkeypatch.setattr(translator, "_call_claude", fake_call)
     descriptions = {str(i): "English" for i in range(translator.BATCH_SIZE + 1)}
-    assert translator.translate(descriptions, "haiku") == {"15": "译文"}
+    assert translator.translate(descriptions, "haiku") == {last: "译文"}
 
 
 def test_missing_claude_binary_translates_nothing(env, monkeypatch):

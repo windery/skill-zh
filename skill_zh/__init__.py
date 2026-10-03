@@ -1,3 +1,3 @@
-"""Add Chinese summaries to English skill descriptions without losing the original text."""
+"""Translate English skill descriptions into Chinese, keeping the originals for restore."""
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"

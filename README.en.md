@@ -2,14 +2,14 @@
 
 [中文](README.md) · [Changelog](CHANGELOG.md)
 
-A Claude Code plugin that puts a Chinese summary in front of English skill descriptions whenever skills are installed or updated, so the skill menu reads in Chinese.
+A Claude Code plugin that translates English skill descriptions into Chinese, in full, whenever skills are installed or updated, so the skill menu reads in Chinese.
 
 ```text
 Before: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this" ...
-After:  疑难 bug 和性能问题的诊断循环。用于用户要求诊断问题或报告功能异常、报错、失败或性能低下。 ｜ EN: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this" ...
+After:  用于诊断困难的 bug 和性能回归的诊断流程。在用户说 "diagnose"/"debug this"、或报告某些东西已损坏/抛出异常/失败/运行缓慢时使用。
 ```
 
-The original English is kept verbatim, so when a skill triggers doesn't change.
+It is a complete translation, not a summary: every "use when" condition stays, and quoted trigger phrases, commands and names are kept verbatim, so skills keep triggering as before. The English original is backed up locally and can be restored at any time.
 
 ## Install
 
@@ -51,16 +51,18 @@ Edit the two skill-zh rows in `/config`, or run `/plugin configure skill-zh@skil
 ## How it works
 
 1. **Hooks.** `SessionStart` and `PostToolUse` (Bash) hooks run `async`, so they never block the session. A Bash command only matters if it looks like a skill install or update.
-2. **Scan.** Each `SKILL.md` description is classified as translated (contains ` ｜ EN: `), already Chinese (at least as many Chinese characters as English words), or pending.
+2. **Scan.** Each `SKILL.md` description is classified as translated, already Chinese (at least as many Chinese characters as English words), or pending. "Translated" means the description still equals the translation we recorded when writing it: a skill updated upstream (English again) is translated again, and one you edited by hand counts as yours and is never overwritten or restored.
 3. **Detached run.** Pending work runs in a process of its own session. Claude Code cancels async hooks still running when a session ends (`--debug` logs `Hook SessionStart:startup ... cancelled`), which would kill a translation halfway through a short `claude -p` session.
-4. **Translate.** `claude -p --model haiku` with the user's own login, 15 descriptions per call, JSON in and out. The child session loads no settings sources and gets no tools, so it has no plugins or hooks and can't trigger itself.
-5. **Rewrite.** Only `description` changes, to a single line `<Chinese> ｜ EN: <original>`. Every other byte of the file is kept, and the result is re-parsed and compared before it is written.
-6. **Length guard.** Codex and the Agent Skills spec cap descriptions at 1024 characters, and an over-long one stops the skill from loading. The Chinese part is truncated to fit; if the original alone is too long, the skill is skipped.
-7. **Backups and locking.** The original file is saved to `~/.claude/skill-zh/originals/` before writing. A file lock keeps concurrent sessions from translating at the same time.
+4. **Translate.** `claude -p --model haiku` with the user's own login, 10 descriptions per call, asking for complete translations that keep quoted trigger phrases. Replies come back as plain text under `@@@ <key>` markers rather than JSON, because models routinely leave the quotes in those phrases unescaped. The child session loads no settings sources and gets no tools, so it has no plugins or hooks and can't trigger itself.
+5. **Rewrite.** Only `description` changes, to the Chinese translation on a single line. Every other byte of the file is kept, and the result is re-parsed and compared before it is written.
+6. **Length guard.** Codex and the Agent Skills spec cap descriptions at 1024 characters, and an over-long one stops the skill from loading. A translation over the cap is not written.
+7. **Backups and locking.** The original file and the translation written are recorded in `~/.claude/skill-zh/originals/` before writing. A file lock keeps concurrent sessions from translating at the same time.
 
 When a skill update overwrites the description, the next session translates it again.
 
-**Why not replace the description?** It is both the menu text and what the model reads to decide when to use the skill; there is no separate display field. Replacing it would drop the author's English trigger phrases.
+**Why a complete translation, not a summary?** The description is both the menu text and what the model reads to decide when to use the skill; there is no separate display field. A summary would drop the author's conditions and trigger phrases. A complete translation that keeps quoted phrases verbatim serves both readers.
+
+0.1 and 0.2 wrote `<one-line summary> ｜ EN: <original>`. After upgrading, those descriptions are translated again in full from the backed-up original, not just stripped of their English half.
 
 ## Managed directories
 

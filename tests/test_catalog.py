@@ -3,7 +3,7 @@ import os
 import pytest
 
 from conftest import VARIANTS
-from skill_zh.catalog import MAX_DESCRIPTION_LENGTH, SEPARATOR, Status, classify, compose, discover, is_mostly_chinese
+from skill_zh.catalog import Status, classify, discover, is_mostly_chinese
 from skill_zh.config import Options
 
 
@@ -21,33 +21,30 @@ def test_is_mostly_chinese(text, expected):
 
 
 @pytest.mark.parametrize(
-    "description, expected",
+    "description, ours, expected",
     [
-        (None, Status.NO_DESCRIPTION),
-        ("", Status.NO_DESCRIPTION),
-        ("中文 ｜ EN: English", Status.TRANSLATED),
-        ("把会话存到飞书知识库。", Status.ALREADY_CHINESE),
-        ("Diagnose hard bugs.", Status.PENDING),
+        (None, None, Status.NO_DESCRIPTION),
+        ("", None, Status.NO_DESCRIPTION),
+        ("Diagnose hard bugs.", None, Status.PENDING),
+        ("把会话存到飞书知识库。", None, Status.ALREADY_CHINESE),
+        ("诊断疑难 bug。", "诊断疑难 bug。", Status.TRANSLATED),
+        ("Diagnose hard bugs, now faster.", "诊断疑难 bug。", Status.PENDING),
+        ("我自己改过的说明。", "诊断疑难 bug。", Status.ALREADY_CHINESE),
+        ("诊断 bug ｜ EN: Diagnose hard bugs.", None, Status.PENDING),
+    ],
+    ids=[
+        "missing",
+        "empty",
+        "english",
+        "written in chinese",
+        "our translation",
+        "updated upstream since",
+        "edited by hand since",
+        "0.2 bilingual format",
     ],
 )
-def test_classify(description, expected):
-    assert classify(description) is expected
-
-
-def test_compose_normalizes_whitespace():
-    assert compose("中文", "a  b\n c") == "中文" + SEPARATOR + "a b c"
-
-
-def test_compose_truncates_summary_never_original():
-    original = "x" * 1000
-    out = compose("长" * 100, original)
-    assert len(out) == MAX_DESCRIPTION_LENGTH
-    assert out.endswith(SEPARATOR + original)
-    assert "…" in out
-
-
-def test_compose_gives_up_when_original_fills_the_limit():
-    assert compose("中文", "x" * 1010) is None
+def test_classify(description, ours, expected):
+    assert classify(description, ours) is expected
 
 
 def test_discover_dedupes_symlinked_skills(env, make_skill, monkeypatch):

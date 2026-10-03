@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "skill-zh",
-  "description": "给英文 skill 简介自动补上中文说明的 Claude Code 插件",
+  "description": "把英文 skill 简介自动翻译成中文的 Claude Code 插件",
   "owner": {
     "name": "windery",
     "url": "https://github.com/windery"
@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "skill-zh",
-      "description": "装或更新 skill 后，自动给英文简介补上中文说明（英文原文保留，触发词不变）",
+      "description": "装或更新 skill 后，自动把英文简介完整翻译成中文（保留触发词，原文可随时恢复）",
       "author": {
         "name": "windery",
         "url": "https://github.com/windery"

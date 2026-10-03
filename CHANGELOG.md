@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 - 2026-10-02
+
+### Changed
+
+- Descriptions become Chinese only: a complete translation replaces the old `<summary> ｜ EN: <original>` format. Quoted trigger phrases, commands and names stay verbatim so skills keep triggering.
+- Descriptions written by 0.1/0.2 are translated again in full from the backed-up original on the next run.
+- A translation is recognised by a record in the state directory instead of a marker in the file. Skills updated upstream are translated again; descriptions edited by hand are never overwritten or restored.
+- Translations come back as `@@@ <key>` text blocks instead of JSON, which broke on unescaped quotes in trigger phrases. Batches shrink from 15 to 10.
+
 ## 0.2.1 - 2026-10-02
 
 ### Fixed

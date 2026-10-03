@@ -1,6 +1,6 @@
 """
-Persistent state for skill-zh: the state directory, debug log, run lock and
-backups of original SKILL.md files.
+Persistent state for skill-zh: the state directory, debug log, run lock, and
+per-skill records of the original SKILL.md and the translation we wrote.
 
 State deliberately lives outside the plugin: ``${CLAUDE_PLUGIN_ROOT}`` is
 replaced on every update and ``${CLAUDE_PLUGIN_DATA}`` is deleted on
@@ -103,27 +103,46 @@ def exclusive_lock() -> Iterator[bool]:
         os.close(fd)  # Closing the descriptor drops the flock.
 
 
-def backup_path(skill_path: str) -> str:
-    """Where the untranslated copy of ``skill_path`` is kept.
-
-    The folder name keeps backups readable; the path hash keeps two skills that
-    share a folder name in different roots from overwriting each other.
-    """
+def _record_base(skill_path: str) -> str:
+    # The folder name keeps records readable; the path hash keeps two skills that
+    # share a folder name in different roots from overwriting each other.
     digest = hashlib.sha1(skill_path.encode("utf-8")).hexdigest()[:10]
     name = os.path.basename(os.path.dirname(skill_path))
-    return os.path.join(state_dir(), "originals", f"{name}-{digest}.md")
+    return os.path.join(state_dir(), "originals", f"{name}-{digest}")
 
 
-def save_backup(skill_path: str, text: str) -> None:
-    path = backup_path(skill_path)
-    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
+def backup_path(skill_path: str) -> str:
+    """The untranslated copy of ``skill_path``, used by ``restore``."""
+    return _record_base(skill_path) + ".md"
+
+
+def translation_path(skill_path: str) -> str:
+    """The description we wrote into ``skill_path``.
+
+    It is how a translation is recognised as ours: the file counts as
+    translated only while its description still equals this text.
+    """
+    return _record_base(skill_path) + ".zh.txt"
+
+
+def save_backup(skill_path: str, original_text: str, translation: str) -> None:
+    os.makedirs(os.path.join(state_dir(), "originals"), mode=0o700, exist_ok=True)
+    for path, content in ((backup_path(skill_path), original_text), (translation_path(skill_path), translation)):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
 
 
 def load_backup(skill_path: str) -> str | None:
+    return _read(backup_path(skill_path))
+
+
+def load_translation(skill_path: str) -> str | None:
+    return _read(translation_path(skill_path))
+
+
+def _read(path: str) -> str | None:
     try:
-        with open(backup_path(skill_path), encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return f.read()
     except OSError:
         return None
