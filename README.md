@@ -72,7 +72,7 @@ Claude Code 里的 `description` 有两个用途：在菜单里给人看，也�
 脚本不依赖插件环境，插件缓存里那份、自己 clone 的那份都能直接跑：
 
 ```bash
-SKILL_ZH="$(ls -d ~/.claude/plugins/cache/skill-zh/skill-zh/*/ | tail -1)scripts/skill_zh.py"
+SKILL_ZH="$(printf '%s\n' ~/.claude/plugins/cache/skill-zh/skill-zh/*/scripts/skill_zh.py | tail -n 1)"
 python3 "$SKILL_ZH" status     # 看每个 skill 的汉化状态
 python3 "$SKILL_ZH" run        # 立刻翻译，不等下次会话
 python3 "$SKILL_ZH" restore    # 全部改回英文原文
