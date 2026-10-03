@@ -1,9 +1,14 @@
 {
+  "description": "装或更新 skill 后，在后台给英文简介补上中文说明",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/skill_zh.py\" hook", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/translate_hook.py\"",
+            "async": true
+          }
         ]
       }
     ],
@@ -11,7 +16,11 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/skill_zh.py\" hook", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/translate_hook.py\"",
+            "async": true
+          }
         ]
       }
     ]

@@ -1,10 +1,27 @@
 {
   "name": "skill-zh",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "装或更新 skill 后，自动给英文简介补上中文说明（英文原文保留，触发词不变）",
-  "author": { "name": "windery" },
+  "author": {
+    "name": "windery",
+    "url": "https://github.com/windery"
+  },
   "homepage": "https://github.com/windery/skill-zh",
   "repository": "https://github.com/windery/skill-zh",
   "license": "MIT",
-  "keywords": ["skills", "chinese", "i18n", "hooks"]
+  "keywords": ["skills", "chinese", "i18n", "translation", "hooks"],
+  "userConfig": {
+    "model": {
+      "type": "string",
+      "title": "翻译模型",
+      "description": "调用 claude -p 翻译时用的模型，默认 haiku",
+      "default": "haiku"
+    },
+    "exclude": {
+      "type": "string",
+      "title": "不翻译的 skill",
+      "description": "按 skill 文件夹名填写，多个用英文逗号分隔，例如 ego-browser,agent-reach",
+      "default": ""
+    }
+  }
 }
