@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-10-02
+
+### Fixed
+
+- `status` ends with a tally line, and `/skill-zh:status` asks Claude to show the output verbatim. A small model relaying the list used to miscount.
+
 ## 0.2.0 - 2026-10-02
 
 ### Added

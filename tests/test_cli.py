@@ -12,6 +12,13 @@ def test_status_is_the_default(make_skill, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert lines[0].split()[:2] == ["alpha", "待翻译"]
     assert lines[1].split()[:2] == ["gamma", "本来就是中文"]
+    assert lines[2] == "共 2 个：待翻译 1，本来就是中文 1"
+
+
+def test_status_tally_always_mentions_pending(make_skill, capsys):
+    make_skill("gamma", "---\ndescription: 把会话存到飞书知识库。\n---\n")
+    cli.main(["status"])
+    assert capsys.readouterr().out.splitlines()[-1] == "共 1 个：待翻译 0，本来就是中文 1"
 
 
 def test_status_with_no_skills(env, capsys):

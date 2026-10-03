@@ -41,6 +41,10 @@ def _status(options) -> int:
     width = max(len(s.name) for s in skills)
     for s in sorted(skills, key=lambda s: (list(Status).index(s.status), s.name)):
         print(f"{s.name:<{width}}  {s.status.value:<6}  {s.path.replace(home, '~', 1)}")
+    # A closing tally, so whoever relays this output (often a model) doesn't have to count.
+    counts = [(status, sum(s.status is status for s in skills)) for status in Status]
+    tally = "，".join(f"{status.value} {n}" for status, n in counts if n or status is Status.PENDING)
+    print(f"共 {len(skills)} 个：{tally}")
     return 0
 
 
