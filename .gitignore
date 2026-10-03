@@ -4,3 +4,6 @@ __pycache__/
 .ruff_cache/
 .venv/
 .DS_Store
+
+# Local issue tracker for the engineering skills (see docs/agents/issue-tracker.md)
+.scratch/
