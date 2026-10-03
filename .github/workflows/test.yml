@@ -1,0 +1,24 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.8", "3.13"]
+        yaml: [with-pyyaml, without-pyyaml]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - if: matrix.yaml == 'with-pyyaml'
+        run: pip install pyyaml
+      - name: Check JSON manifests
+        run: for f in .claude-plugin/*.json hooks/hooks.json; do python -m json.tool "$f" > /dev/null; done
+      - run: python -m unittest discover -s tests -v

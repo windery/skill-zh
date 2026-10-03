@@ -1,0 +1,15 @@
+{
+  "name": "skill-zh",
+  "owner": { "name": "windery" },
+  "metadata": {
+    "description": "装或更新 skill 后，自动给英文简介补上中文说明",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "skill-zh",
+      "description": "装或更新 skill 后，自动给英文简介补上中文说明（英文原文保留，触发词不变）",
+      "source": "./"
+    }
+  ]
+}
