@@ -11,7 +11,7 @@ from typing import Callable, NamedTuple
 from skill_zh import translator
 from skill_zh.catalog import MAX_DESCRIPTION_LENGTH, Skill, Status, discover, is_legacy, legacy_english
 from skill_zh.config import Options
-from skill_zh.frontmatter import get_description, set_description
+from skill_zh.frontmatter import copy_description, get_description, set_description
 from skill_zh.state import debug_log, exclusive_lock, load_backup, save_backup
 
 
@@ -103,7 +103,7 @@ def _apply(skill: Skill, source: Source, translation: str | None) -> str | None:
     # 翻译要跑一两分钟，期间文件可能被 `npx skills update` 改过。
     # 写回前重读一遍，和当初读到的不一样就放弃，下次会按新内容重翻。
     try:
-        with open(skill.path, encoding="utf-8") as f:
+        with open(skill.path, encoding="utf-8", newline="") as f:
             current = f.read()
     except OSError as e:
         return f"读文件失败：{e}"
@@ -114,7 +114,7 @@ def _apply(skill: Skill, source: Source, translation: str | None) -> str | None:
         return "改写后校验没通过，保持原样"
     try:
         save_backup(skill.path, source.text, translation)
-        with open(skill.path, "w", encoding="utf-8") as f:
+        with open(skill.path, "w", encoding="utf-8", newline="") as f:
             f.write(text)
     except OSError as e:
         return f"写文件失败：{e}"
@@ -135,12 +135,13 @@ def restore() -> RestoreReport:
         original = get_description(backup) if backup else None
         if not original or is_legacy(original):
             continue
-        text = set_description(skill.text, original)
+        # 连写法一起搬回来，文件其余部分没动过的话就和原件逐字节一致
+        text = copy_description(backup, skill.text)
         if text is None:
             report.failed.append(Failed(skill.name, "改写后校验没通过，保持原样"))
             continue
         try:
-            with open(skill.path, "w", encoding="utf-8") as f:
+            with open(skill.path, "w", encoding="utf-8", newline="") as f:
                 f.write(text)
         except OSError as e:
             report.failed.append(Failed(skill.name, f"写文件失败：{e}"))

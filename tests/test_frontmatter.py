@@ -2,7 +2,7 @@ import pytest
 
 from conftest import VARIANTS, body
 from skill_zh import frontmatter
-from skill_zh.frontmatter import get_description, set_description
+from skill_zh.frontmatter import copy_description, get_description, set_description
 
 
 @pytest.mark.parametrize("kind", VARIANTS)
@@ -31,6 +31,19 @@ def test_bom_is_kept(yaml_mode):
     out = set_description(VARIANTS["bom"], "中文说明")
     assert out.startswith("﻿---\n")
     assert get_description(out) == "中文说明"
+
+
+@pytest.mark.parametrize("kind", VARIANTS)
+def test_copy_description_restores_the_original_bytes(kind, yaml_mode):
+    original = VARIANTS[kind]
+    translated = set_description(original, "中文说明")
+    assert copy_description(translated, original) == translated  # 反过来也成立
+    assert copy_description(original, translated) == original
+
+
+def test_copy_description_refuses_when_either_side_lacks_one():
+    assert copy_description("---\nname: a\n---\n", VARIANTS["plain"]) is None
+    assert copy_description(VARIANTS["plain"], "# no frontmatter\n") is None
 
 
 def test_other_fields_survive_byte_for_byte():

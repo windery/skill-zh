@@ -97,6 +97,26 @@ def test_file_changed_during_translation_is_left_alone(make_skill):
     assert statuses()["alpha"] is Status.PENDING
 
 
+def test_crlf_file_round_trips_byte_for_byte(make_skill, fake_translate):
+    # 走真实的文件读写路径：Python 默认的文本模式会把 CRLF 读成 LF，字符串级的测试发现不了
+    path = make_skill("alpha", VARIANTS["crlf mid-field"])
+    original = path.read_bytes()
+    commands.translate_pending(Options(), translate=fake_translate)
+    translated = path.read_bytes()
+    assert b"\r\n" in translated
+    assert b"\n" not in translated.replace(b"\r\n", b"")
+    assert load_backup(real(path)).encode("utf-8") == original  # 备份也得逐字节一致
+    commands.restore()
+    assert path.read_bytes() == original
+
+
+def test_bom_file_keeps_its_bom(make_skill, fake_translate):
+    path = make_skill("alpha", VARIANTS["bom"])
+    commands.translate_pending(Options(), translate=fake_translate)
+    assert path.read_bytes().startswith("﻿".encode())
+    assert get_description(path.read_text(encoding="utf-8")) == "中文说明"
+
+
 def test_hand_edited_translation_is_left_alone(make_skill, fake_translate):
     path = make_skill("alpha", VARIANTS["plain"])
     commands.translate_pending(Options(), translate=fake_translate)

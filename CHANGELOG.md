@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2 - 2026-10-03
+
+### Fixed
+
+- SKILL.md files and backups are read and written byte for byte (`newline=""`). A CRLF file no longer comes back as LF: Python's text mode had been converting line endings on read, which the 0.3.1 fix and its string-level tests never saw. Found by translating real files with the real model.
+- `restore` puts the original description line back verbatim, quoting style included, so a file nothing else touched is byte-identical to its backup.
+
 ## 0.3.1 - 2026-10-03
 
 ### Fixed

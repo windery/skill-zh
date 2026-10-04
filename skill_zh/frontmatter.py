@@ -47,6 +47,27 @@ def set_description(text: str, value: str) -> str | None:
     return result if _verify(text, result, value) else None
 
 
+def copy_description(source: str, target: str) -> str | None:
+    """把 source 里的 description 连同写法原样搬进 target，其他内容不动；没法安全做就返回 None。
+
+    restore 用它：改回英文时不只是值相同，引号、折叠块这些写法也和原件一样，
+    文件其余部分没动过的话，结果和原件逐字节一致。
+    """
+    src, dst = _FRONTMATTER.match(source), _FRONTMATTER.match(target)
+    if not src or not dst:
+        return None
+    src_newline = "\r\n" if "\r\n" in src.group(0) else "\n"
+    dst_newline = "\r\n" if "\r\n" in dst.group(0) else "\n"
+    src_lines, dst_lines = src.group(1).split(src_newline), dst.group(1).split(dst_newline)
+    src_span, dst_span = _description_span(src_lines), _description_span(dst_lines)
+    if not src_span or not dst_span:
+        return None
+    dst_lines[dst_span[0] : dst_span[1]] = src_lines[src_span[0] : src_span[1]]
+    result = target[: dst.start(1)] + dst_newline.join(dst_lines) + target[dst.end(1) :]
+    value = get_description(source)
+    return result if value is not None and _verify(target, result, value) else None
+
+
 def _verify(before: str, after: str, value: str) -> bool:
     """写回前自检：description 变成了新值，其他顶层字段一行没动；有 PyYAML 时再按解析结果比一遍。"""
     parsed = _parse(after)

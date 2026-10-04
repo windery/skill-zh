@@ -81,7 +81,8 @@ def discover(exclude: frozenset = frozenset()) -> list:
                 continue
             seen.add(real)
             try:
-                with open(real, encoding="utf-8") as f:
+                # newline=""：按原样读，别让 Python 把 CRLF 换成 LF
+                with open(real, encoding="utf-8", newline="") as f:
                     text = f.read()
             except (OSError, UnicodeDecodeError):
                 continue

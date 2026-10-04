@@ -106,7 +106,7 @@ def save_backup(skill_path: str, original_text: str, translation: str) -> None:
     originals = os.path.join(ensure_state_dir(), "originals")
     os.makedirs(originals, mode=0o700, exist_ok=True)
     for path, content in ((backup_path(skill_path), original_text), (translation_path(skill_path), translation)):
-        with open(path, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8", newline="") as f:  # 备份要和原文件逐字节一致，换行也不能变
             f.write(content)
 
 
@@ -120,7 +120,7 @@ def load_translation(skill_path: str) -> str | None:
 
 def _read(path: str) -> str | None:
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8", newline="") as f:
             return f.read()
     except OSError:
         return None
