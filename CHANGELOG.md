@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3 - 2026-10-03
+
+### Changed
+
+- The default model is `opus`. Scored by the same review agents on 30 real descriptions, Haiku left 8 skills with mistranslated terms or altered trigger conditions (`CI secrets` → 秘密, `cutover` → 转换, `agent` → 代理); Sonnet and Opus left none, and Opus read best. The volume is tiny, so the cost difference is negligible. Set `model` to `sonnet` or `haiku` to trade quality for quota.
+- The translation prompt now carries a glossary of standard Chinese terms, a list of developer words to keep in English (agent, issue, PR, spec, bug, web, ...), and rules for pronouns, parallel lists, tone and sentence structure. Quoted trigger phrases are kept verbatim, quote marks included.
+
 ## 0.3.2 - 2026-10-03
 
 ### Fixed

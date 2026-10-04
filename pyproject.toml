@@ -11,5 +11,9 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# 翻译提示词是整段中文散文，按行宽硬拆反而难读
+"skill_zh/translator.py" = ["E501"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["skill_zh", "conftest"]

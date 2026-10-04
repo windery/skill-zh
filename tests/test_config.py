@@ -20,6 +20,13 @@ def test_defaults(env):
     assert options.exclude == frozenset()
 
 
+def test_default_model_matches_the_manifest():
+    # /config 里显示的默认值来自 plugin.json，代码里的默认值得和它一致
+    with open(ROOT / ".claude-plugin" / "plugin.json", encoding="utf-8") as f:
+        manifest = json.load(f)
+    assert manifest["userConfig"]["model"]["default"] == DEFAULT_MODEL
+
+
 def test_options_from_hook_environment(env, monkeypatch):
     monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_MODEL", "sonnet")
     monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_EXCLUDE", " a, b ,,")

@@ -1,6 +1,6 @@
 {
   "name": "skill-zh",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "装或更新 skill 后，自动把英文简介完整翻译成中文（保留触发词，原文可随时恢复）",
   "author": {
     "name": "windery",
@@ -14,8 +14,8 @@
     "model": {
       "type": "string",
       "title": "翻译模型",
-      "description": "调用 claude -p 翻译时用的模型，默认 haiku",
-      "default": "haiku"
+      "description": "调用 claude -p 翻译时用的模型，默认 opus；想省额度可以改成 sonnet",
+      "default": "opus"
     },
     "exclude": {
       "type": "string",

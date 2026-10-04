@@ -25,13 +25,34 @@ BATCH_SIZE = 10
 TIMEOUT_SECONDS = 300
 CHILD_ENV = "SKILL_ZH_CHILD"
 
-PROMPT = """你是技术翻译。下面 JSON 的每个值是一个 AI 编程助手 skill 的英文简介（description）。
+# 提示词里的术语规则来自对 30 条真实译文的核对：major 问题几乎全是术语错译和把 agent、issue 硬译成「代理」「问题」
+PROMPT = """你是中文技术文档译者。下面 JSON 的每个值是一个 AI 编程助手 skill 的英文简介（description）。
 这段简介既显示在菜单里给人看，也是 AI 判断「什么时候该用这个 skill」的依据，
-而且翻译后不再保留英文原文。所以要完整翻译，不能概括或删减。
-- 意思完整保留，尤其是「什么时候用」「什么时候不用」的条件
-- 引号里的用户原话和触发词保留原文，例如 "diagnose"、"debug this"
+而且翻译后不再保留英文原文。所以要完整、准确地翻译，不能概括或删减。
+
+内容：
+- 意思完整保留，尤其是「什么时候用」「什么时候不用」的条件；中心词和限定词都不能漏（changes 要译出「变更」，high-trust 要译出「高可信度」），也不要加原文没有的修饰词
+- 指人的词要译出来：the user 是「用户」，you/your 是「你」，what you've already discussed 是「你们已经讨论过的内容」；it/them/their 这类指物的代词一般省略
+- 引号里的用户原话和触发词是模型识别用户意图的依据，一个字母都不能改，不翻译、不改写，X 这样的占位符也照抄，引号样式也照原样：例如 "diagnose"、"debug this"、"review since X"、'grill'
 - skill 名、命令、产品名、文件名保留原文，例如 /triage、CLAUDE.md、GitHub
-- 中文和英文之间加一个空格；不要在整段译文外面再加引号
+- 作者用的强语气动词不要弱化：relentlessly 是「穷追不舍地」不是「深入」，grill 是「不留情面地追问」不是「讨论」；语气跟原文走，口语短句译成中文口语（Stop. 是「停。」，something is broken 是「某处坏了」）
+- 保持原文的句子数量和层次：先说是什么，再说什么时候用，不合并也不拆分
+
+术语：
+- 开发圈通用英文词一律保留原词，不要硬译：agent、sub-agent、issue、PR、ticket、spec、bug、web、repo、commit、CI、ADR。不要写成「代理」「问题」「规格」「错误」「网络」
+- git 子命令和中文社区习惯直接用英文的词也保留：merge-base、rebase、triage、dogfooding。skill 只在指 agent skill 时保留英文，指人的本领时译「技能」
+- 有固定中文译名的术语用中文：integration test→集成测试，codebase→代码库，primary sources→一手来源，secrets→密钥，cutover→切换，data lineage→数据血缘，sequence diagram→时序图，deep module→深模块，domain（DDD 语境）→领域，performance regression→性能退化，glossary→术语表，第三方服务的 dashboard→控制台
+- 多义词按技术语境取义：interview（agent 向用户逐条提问）→追问，brief→任务简报，router→入口，plain-language→自然语言，surface（动词）→明确列出，provisioning→搭建
+- 依赖其他 skill 才懂的概念先译成中文、再括注英文，例如「深化（deepening）机会」，不要只留英文
+- 同一个英文词在这一批里只用一种译法
+
+表达：
+- 先读懂整句，再按中文语序重新组织，不要逐词对译；译完通读，「规划 X 为 Y」「将 X 记录为 Y」这类中文里没人这么说的句子必须改写
+- 「Use when …」译成「当用户……时使用」或「在……时使用」，不要写成「用于……时」
+- 动词按中文习惯搭配：减少错误、填写表单、改写成；不用「进行」「执行」凑字；this repo 译「本仓库」，this skill 译「此 skill」
+- 并列项要平行，每一项带同样的后缀（架构图、工作流图、时序图）；并列用顿号，最后一项前用「或」「和」
+- 保留的英文词不带复数 -s（bugs 写 bug），skill 统一小写
+- 标点用中文全角；中文和英文之间加一个空格；不要在整段译文外面再加引号
 
 按下面的格式输出，每条一段，标记行里的键与输入完全相同，不要输出任何其他内容：
 

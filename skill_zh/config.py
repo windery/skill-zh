@@ -14,7 +14,9 @@ import os
 from dataclasses import dataclass, field
 
 PLUGIN_NAME = "skill-zh"
-DEFAULT_MODEL = "haiku"
+# 用同一套核对代理给 30 条真实译文打分：Haiku 有 8 条术语错译或改了触发条件，Sonnet 和 Opus 都是 0，Opus 措辞最顺。
+# 翻译量很小（只翻新装或更新的 skill），模型差价可以忽略，所以默认用最好的。
+DEFAULT_MODEL = "opus"
 
 
 def env_path(name: str) -> str | None:
