@@ -17,7 +17,7 @@ jobs:
       - run: ruff format --check .
 
   test:
-    # ubuntu-22.04 still ships Python 3.8 builds for setup-python.
+    # setup-python 只在 ubuntu-22.04 上还提供 Python 3.8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false

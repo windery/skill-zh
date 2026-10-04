@@ -1,14 +1,12 @@
 """
-Read and rewrite the ``description`` field of a SKILL.md YAML frontmatter.
+读写 SKILL.md 开头 YAML frontmatter 里的 description 字段。
 
-Only that one field is touched. Rewriting goes line by line instead of
-dumping YAML back out, so comments, key order and quoting style of every
-other field survive byte for byte. Every rewrite is verified by parsing the
-result again before it is accepted.
+只动这一个字段。改写是逐行替换，不把 YAML 重新序列化一遍，所以其他字段的注释、
+顺序和引号写法一个字节都不变。每次改写都要通过自检才算数：新文件里的 description
+必须等于要写的值，其他顶层字段必须一行不差。
 
-PyYAML is used when available. Without it, a small fallback parser
-understands the description shapes real skills use: plain, quoted, folded
-(``>``), literal (``|``) and multi-line plain scalars.
+有 PyYAML 就用它解析；没有的话，内置一个够用的简易解析，认得真实 skill 里出现过的
+几种写法：单行、带引号、折叠块（>）、字面块（|）、多行续写。
 """
 
 from __future__ import annotations
@@ -16,8 +14,11 @@ from __future__ import annotations
 import json
 import re
 
-_FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
+# 允许开头带 BOM；frontmatter 的换行可以是 LF 或 CRLF
+_FRONTMATTER = re.compile(r"\A﻿?---\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
 _DESCRIPTION_KEY = re.compile(r"description\s*:")
+# 顶层字段行：行首不缩进的 `key:`
+_TOP_LEVEL_KEY = re.compile(r"^[^\s#:][^:]*:")
 
 
 def get_description(text: str) -> str | None:
@@ -27,29 +28,51 @@ def get_description(text: str) -> str | None:
 
 
 def set_description(text: str, value: str) -> str | None:
-    """Return ``text`` with the description replaced, or None if that can't be done safely.
+    """返回把 description 换成 value 之后的全文；没法安全改就返回 None。
 
-    The new value is written as one double-quoted JSON string, which is also a
-    valid YAML double-quoted scalar.
+    新值写成一行双引号 JSON 字符串，它同时也是合法的 YAML 双引号标量。
     """
     match = _FRONTMATTER.match(text)
     if not match:
         return None
-    lines = match.group(1).split("\n")
+    # 跟着文件原来的换行风格走，别把 CRLF 文件改出混合换行
+    newline = "\r\n" if "\r\n" in match.group(0) else "\n"
+    lines = match.group(1).split(newline)
     span = _description_span(lines)
     if not span:
         return None
     start, end = span
     lines[start:end] = ["description: " + json.dumps(value, ensure_ascii=False)]
-    result = text[: match.start(1)] + "\n".join(lines) + text[match.end(1) :]
+    result = text[: match.start(1)] + newline.join(lines) + text[match.end(1) :]
+    return result if _verify(text, result, value) else None
 
-    before, after = _parse(text), _parse(result)
-    if not after or after.get("description") != value:
-        return None
-    before, after = dict(before or {}), dict(after)
-    before.pop("description", None)
-    after.pop("description", None)
-    return result if before == after else None
+
+def _verify(before: str, after: str, value: str) -> bool:
+    """写回前自检：description 变成了新值，其他顶层字段一行没动；有 PyYAML 时再按解析结果比一遍。"""
+    parsed = _parse(after)
+    if not parsed or parsed.get("description") != value:
+        return False
+    if _other_top_level_lines(before) != _other_top_level_lines(after):
+        return False
+    try:
+        import yaml  # noqa: F401
+    except ImportError:
+        return True  # 没有 PyYAML，只能做到文本级比对
+    old, new = dict(_parse(before) or {}), dict(parsed)
+    old.pop("description", None)
+    new.pop("description", None)
+    return old == new
+
+
+def _other_top_level_lines(text: str) -> list:
+    match = _FRONTMATTER.match(text)
+    if not match:
+        return []
+    return [
+        line.rstrip("\r")
+        for line in match.group(1).splitlines()
+        if _TOP_LEVEL_KEY.match(line) and not _DESCRIPTION_KEY.match(line)
+    ]
 
 
 def _parse(text: str) -> dict | None:
@@ -67,16 +90,16 @@ def _parse(text: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def _description_span(lines: list[str]) -> tuple[int, int] | None:
-    """Line range ``[start, end)`` the description occupies, continuation lines included."""
+def _description_span(lines: list) -> tuple | None:
+    """description 占的行范围 [start, end)，续写行算在内。"""
     for start, line in enumerate(lines):
         if not _DESCRIPTION_KEY.match(line):
             continue
         end = start + 1
-        # Continuation lines are indented; blank lines may sit inside block scalars.
+        # 续写行都有缩进；块标量中间可能夹空行
         while end < len(lines) and (not lines[end].strip() or lines[end][:1] in (" ", "\t")):
             end += 1
-        # Trailing blank lines belong to whatever comes next, not to the description.
+        # 末尾的空行属于下一个字段，不属于 description
         while end > start + 1 and not lines[end - 1].strip():
             end -= 1
         return start, end

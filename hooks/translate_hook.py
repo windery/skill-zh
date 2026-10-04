@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""SessionStart / PostToolUse hook entry point for the skill-zh plugin.
+"""skill-zh 插件的钩子入口，SessionStart 和 PostToolUse 都走这里。
 
-Claude Code runs this script asynchronously (see hooks.json). It always exits
-0: a failure here must never surface as a hook error in the user's session,
-so problems go to the log instead.
+Claude Code 以异步方式运行它（见 hooks.json）。它永远以 0 退出：
+这里出了问题也不能在用户的会话里冒出钩子报错，只能写进日志。
 """
 
 import os
 import sys
 
-# Make the skill_zh package importable from the plugin root.
+# 让 skill_zh 包能从插件根目录导入。这是导入包之前的引导代码，所以不能用 config.plugin_root()。
 PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)

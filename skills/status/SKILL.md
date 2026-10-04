@@ -1,5 +1,5 @@
 ---
-description: 查看每个 skill 简介的汉化状态：已汉化、待翻译、本来就是中文
+description: 查看每个 skill 简介的汉化状态：已汉化、待翻译、本来就是中文、无简介
 disable-model-invocation: true
 allowed-tools: Bash(python3 *skill_zh* status)
 ---

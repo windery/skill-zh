@@ -3,7 +3,8 @@ import os
 
 import pytest
 
-from skill_zh.config import DEFAULT_MODEL, load_options, skill_roots
+from conftest import ROOT
+from skill_zh.config import DEFAULT_MODEL, load_options, plugin_root, skill_roots
 from skill_zh.state import state_dir
 
 
@@ -30,7 +31,7 @@ def test_options_from_hook_environment(env, monkeypatch):
 @pytest.mark.parametrize(
     "entry",
     [{"options": {"model": "sonnet", "exclude": "a"}}, {"model": "sonnet", "exclude": "a"}],
-    ids=["as Claude Code writes it", "flat, as in the docs example"],
+    ids=["Claude Code 实际写的格式", "文档示例里的扁平格式"],
 )
 def test_options_from_settings_when_env_is_missing(env, entry):
     write_settings(env, {"other@x": {"model": "opus"}, "skill-zh@skill-zh": entry})
@@ -60,9 +61,17 @@ def test_default_roots_follow_claude_and_codex_homes(env, monkeypatch):
     assert os.path.expanduser("~/.agents/skills") in roots
 
 
+def test_plugin_root(env, monkeypatch):
+    assert plugin_root() == str(ROOT)
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(env / "installed"))
+    assert plugin_root() == str(env / "installed")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "  ")  # 空值当没设
+    assert plugin_root() == str(ROOT)
+
+
 def test_state_dir_precedence(env, monkeypatch):
     assert state_dir() == str(env / "state")
     monkeypatch.delenv("SKILL_ZH_STATE_DIR")
     assert state_dir() == str(env / "claude" / "skill-zh")
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "")  # empty counts as unset
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "")  # 空值当没设
     assert state_dir() == os.path.expanduser("~/.claude/skill-zh")

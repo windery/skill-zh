@@ -1,15 +1,12 @@
 """
-Translate descriptions by calling ``claude -p`` with the user's own login.
+调用 claude -p 翻译简介，用的是用户自己的 Claude Code 登录。
 
-The child session loads no settings sources and gets no tools, so it has no
-plugins and no hooks: it can't fire this plugin's hooks and recurse. The
-``SKILL_ZH_CHILD`` variable is a second guard for setups where settings still
-load.
+子会话不加载任何设置、不给工具，所以里面没有插件也没有钩子，不会反过来触发
+本插件。SKILL_ZH_CHILD 环境变量是第二道保险，防止某些环境下设置仍被加载。
 
-Descriptions go out as JSON, but translations come back as plain text blocks
-under ``@@@ <key>`` marker lines. JSON is a poor reply format here: complete
-translations keep quoted trigger phrases such as ``"debug this"``, and models
-routinely leave those quotes unescaped, which breaks the whole reply.
+发出去的是 JSON，键只是序号，skill 名和路径都不会发给模型。回来的译文不用 JSON，
+而是「@@@ 键」标记行加一段纯文本：完整翻译会保留 "debug this" 这类带引号的触发词，
+模型经常不转义引号，整段 JSON 就解析不了。
 """
 
 from __future__ import annotations
@@ -20,11 +17,10 @@ import re
 import shutil
 import subprocess
 
-from skill_zh.catalog import has_chinese
-from skill_zh.state import debug_log, state_dir
+from skill_zh.state import debug_log, ensure_state_dir
+from skill_zh.text import is_mostly_chinese
 
-# Full translations run several times longer than the old summaries; smaller
-# batches keep each reply short enough for the model to finish reliably.
+# 完整翻译比原来的一句话概括长好几倍，每批少一点，模型才能稳定地把一整批写完
 BATCH_SIZE = 10
 TIMEOUT_SECONDS = 300
 CHILD_ENV = "SKILL_ZH_CHILD"
@@ -45,14 +41,13 @@ PROMPT = """你是技术翻译。下面 JSON 的每个值是一个 AI 编程助�
 输入：
 {payload}"""
 
-_MARKER = re.compile(r"^@@@\s*(\S+)\s*$", re.M)
+_MARKER = re.compile(r"^@@@[ \t]*(.+?)[ \t]*$", re.M)
 
 
-def translate(descriptions: dict[str, str], model: str) -> dict[str, str]:
-    """Map each key to a complete Chinese translation of its English description.
+def translate(descriptions: dict, model: str) -> dict:
+    """把每个键对应的英文简介翻成完整的中文译文。
 
-    Keys whose translation failed are missing from the result; callers retry
-    them on the next run.
+    翻译失败的键不出现在结果里，调用方下次再试。
     """
     keys = list(descriptions)
     result = {}
@@ -68,12 +63,11 @@ def translate(descriptions: dict[str, str], model: str) -> dict[str, str]:
     return result
 
 
-def parse_reply(reply: str, batch: dict[str, str]) -> dict[str, str]:
-    """Split the reply at its ``@@@ <key>`` markers and keep only usable translations.
+def parse_reply(reply: str, batch: dict) -> dict:
+    """按「@@@ 键」标记把回复切成段，只留下能用的译文。
 
-    Text before the first marker, unknown keys, code fences and translations
-    without any Chinese are dropped; whitespace inside a translation collapses
-    to single spaces, since a description is one line.
+    第一个标记之前的文字、不认识的键、代码围栏都丢掉。译文得是中文为主，
+    模型拒答或者半中半英的不要。译文内部的换行和多余空白压成单个空格，简介就是一行。
     """
     markers = list(_MARKER.finditer(reply))
     result = {}
@@ -81,7 +75,7 @@ def parse_reply(reply: str, batch: dict[str, str]) -> dict[str, str]:
         key = marker.group(1)
         block = reply[marker.end() : following.start() if following else len(reply)]
         text = " ".join(word for word in block.split() if not word.startswith("```"))
-        if key in batch and has_chinese(text):
+        if key in batch and is_mostly_chinese(text):
             result[key] = text
     if not result:
         debug_log(f"没能从回复里解析出译文：{reply[:200]!r}")
@@ -100,8 +94,7 @@ def find_claude() -> str | None:
 def _call_claude(prompt: str, model: str) -> str:
     exe = find_claude()
     if not exe:
-        raise FileNotFoundError("claude command not found")
-    os.makedirs(state_dir(), exist_ok=True)
+        raise FileNotFoundError("找不到 claude 命令")
     proc = subprocess.run(
         [
             exe,
@@ -123,9 +116,9 @@ def _call_claude(prompt: str, model: str) -> str:
         text=True,
         encoding="utf-8",
         timeout=TIMEOUT_SECONDS,
-        cwd=state_dir(),  # Keep the project's CLAUDE.md out of the child's context.
+        cwd=ensure_state_dir(),  # 在状态目录里跑，免得把某个项目的 CLAUDE.md 带进子会话
         env={**os.environ, CHILD_ENV: "1"},
     )
     if proc.returncode != 0:
-        raise subprocess.SubprocessError(f"claude exited {proc.returncode}: {proc.stderr.strip()[:200]}")
+        raise subprocess.SubprocessError(f"claude 退出码 {proc.returncode}：{proc.stderr.strip()[:200]}")
     return proc.stdout

@@ -35,7 +35,7 @@ Three user-invoked commands are available. Claude never invokes them on its own 
 
 | Command | What it does |
 | --- | --- |
-| `/skill-zh:status` | Show each skill's state: translated, pending, already Chinese |
+| `/skill-zh:status` | Show each skill's state: translated, pending, already Chinese, no description |
 | `/skill-zh:translate` | Translate pending descriptions now |
 | `/skill-zh:restore` | Put every original English description back |
 
@@ -51,12 +51,12 @@ Edit the two skill-zh rows in `/config`, or run `/plugin configure skill-zh@skil
 ## How it works
 
 1. **Hooks.** `SessionStart` and `PostToolUse` (Bash) hooks run `async`, so they never block the session. A Bash command only matters if it looks like a skill install or update.
-2. **Scan.** Each `SKILL.md` description is classified as translated, already Chinese (at least as many Chinese characters as English words), or pending. "Translated" means the description still equals the translation we recorded when writing it: a skill updated upstream (English again) is translated again, and one you edited by hand counts as yours and is never overwritten or restored.
+2. **Scan.** Each `SKILL.md` description is classified as translated, already Chinese (at least as many Chinese characters as English words), or pending; a file whose description can't be read is reported as having none. "Translated" means the description still equals the translation we recorded when writing it: a skill updated upstream (English again) is translated again. One you edited by hand into Chinese counts as yours and is never overwritten or restored; an edit back to English is indistinguishable from an upstream update and gets translated again.
 3. **Detached run.** Pending work runs in a process of its own session. Claude Code cancels async hooks still running when a session ends (`--debug` logs `Hook SessionStart:startup ... cancelled`), which would kill a translation halfway through a short `claude -p` session.
-4. **Translate.** `claude -p --model haiku` with the user's own login, 10 descriptions per call, asking for complete translations that keep quoted trigger phrases. Replies come back as plain text under `@@@ <key>` markers rather than JSON, because models routinely leave the quotes in those phrases unescaped. The child session loads no settings sources and gets no tools, so it has no plugins or hooks and can't trigger itself.
-5. **Rewrite.** Only `description` changes, to the Chinese translation on a single line. Every other byte of the file is kept, and the result is re-parsed and compared before it is written.
+4. **Translate.** `claude -p --model haiku` with the user's own login, 10 descriptions per call, asking for complete translations that keep quoted trigger phrases. Only the descriptions go out, keyed by index; skill names and paths are never sent. Replies come back as plain text under `@@@ <key>` markers rather than JSON, because models routinely leave the quotes in those phrases unescaped. A reply that isn't mostly Chinese (a refusal, a half-translated text) is rejected and retried next time. The child session loads no settings sources and gets no tools, so it has no plugins or hooks and can't trigger itself.
+5. **Rewrite.** Only `description` changes, to the Chinese translation on a single line. The file is re-read right before writing; if it changed while the translation ran, this round is skipped and the new content is translated next time. The result is re-parsed and compared before it is written: the description must equal the new value and every other top-level field must be unchanged line by line (without PyYAML that text-level check is all there is).
 6. **Length guard.** Codex and the Agent Skills spec cap descriptions at 1024 characters, and an over-long one stops the skill from loading. A translation over the cap is not written.
-7. **Backups and locking.** The original file and the translation written are recorded in `~/.claude/skill-zh/originals/` before writing. A file lock keeps concurrent sessions from translating at the same time.
+7. **Backups and locking.** The original file and the translation written are recorded in `~/.claude/skill-zh/originals/` before writing. A file lock keeps concurrent sessions from translating at the same time; a run that doesn't get the lock gives up rather than queueing, and its work stays pending for the next session.
 
 When a skill update overwrites the description, the next session translates it again.
 
@@ -68,17 +68,19 @@ When a skill update overwrites the description, the next session translates it a
 
 `~/.agents/skills`, `~/.claude/skills` (follows `CLAUDE_CONFIG_DIR`), `~/.codex/skills` (follows `CODEX_HOME`, excluding `.system`), `~/.config/opencode/skills`, `~/.cursor/skills`, `~/.gemini/skills`.
 
-Project-level skill directories, skills synced from claude.ai and plugin-bundled skills are never touched. Skills symlinked from several roots are written once, through their real path.
+Project-level skill directories, skills synced from claude.ai (the `synced/` subdirectory), Codex's own (`.system/`) and plugin-bundled skills are never touched. Skills symlinked from several roots are written once, through their real path.
 
 ## Privacy and data handling
 
 - Only skill descriptions are sent to Claude, using your own Claude Code login and quota.
-- Backups and the log live in `~/.claude/skill-zh/` (under `CLAUDE_CONFIG_DIR` when set), created owner-only. The directory survives uninstalling, so you can still restore afterwards.
+- Backups and the log live in `~/.claude/skill-zh/` (under `CLAUDE_CONFIG_DIR` when set), created owner-only. The directory survives uninstalling. Run `/skill-zh:restore` before uninstalling; if you forget, reinstall and run it, or run `python3 skill_zh restore` from a checkout.
 
 ## Limitations
 
 - Only Claude Code has hooks. Skills installed from Codex or a terminal are picked up at the next Claude Code session, or by `/skill-zh:translate`.
 - New descriptions show from the next session.
+- Translation quality is only sanity-checked (mostly Chinese, within the length cap). Edit a poor one by hand; it won't be overwritten again.
+- A description edited back to English is indistinguishable from an upstream update and gets translated again.
 - Windows is not supported.
 
 ## Troubleshooting

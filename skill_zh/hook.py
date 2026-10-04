@@ -1,11 +1,10 @@
 """
-Hook handler for SessionStart and PostToolUse(Bash).
+SessionStart 和 PostToolUse(Bash) 两个钩子的处理逻辑。
 
-Both hooks are declared ``async`` in hooks/hooks.json so even the scan never
-holds up the session. The translation itself runs in a detached process:
-Claude Code cancels async hooks that are still running when the session
-ends (``--debug`` logs ``Hook SessionStart:startup ... cancelled``), and a
-``claude -p`` session ends long before a translation batch comes back.
+两个钩子在 hooks/hooks.json 里都声明成 async，连扫描都不会卡住会话。
+翻译本身放在一个独立进程里：会话结束时，Claude Code 会取消还在跑的后台钩子
+（--debug 日志里能看到 `Hook SessionStart:startup ... cancelled`），
+而一次 claude -p 会话早在翻译跑完之前就结束了。
 """
 
 from __future__ import annotations
@@ -18,16 +17,13 @@ import sys
 from typing import TextIO
 
 from skill_zh import commands
-from skill_zh.config import load_options
-from skill_zh.state import state_dir
+from skill_zh.config import load_options, plugin_root
+from skill_zh.state import ensure_state_dir
 from skill_zh.translator import CHILD_ENV
 
-# Commands that look like installing or updating skills: the `skills` CLI, or
-# anything that writes into a skills directory (cp, git clone, ...). False
-# positives only cost a cheap scan that finds nothing to do.
+# 看起来像在装或更新 skill 的命令：`skills` 命令行工具，或者往某个 skills 目录里写东西
+# （cp、git clone 之类）。误判的代价只是多扫一遍、发现没事可做。
 INSTALL_COMMAND = re.compile(r"\bskills?\b.*\b(add|install|update|upgrade)\b|/skills(/|\b)", re.I)
-
-PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def should_run(payload: dict) -> bool:
@@ -39,28 +35,26 @@ def should_run(payload: dict) -> bool:
 
 def main(stdin: TextIO) -> None:
     if os.environ.get(CHILD_ENV):
-        return  # We are inside our own translation call.
+        return  # 现在是在我们自己发起的翻译子会话里
     try:
         payload = json.load(stdin)
     except ValueError:
         payload = {}
     if not isinstance(payload, dict) or not should_run(payload):
         return
-    if commands.has_pending(load_options()):
+    if commands.has_pending(load_options().exclude):
         spawn_translation()
 
 
 def spawn_translation() -> None:
-    """Start ``python3 <plugin>/skill_zh translate`` in its own process session.
+    """在独立的进程会话里启动 `python3 <插件目录>/skill_zh translate`。
 
-    A new session puts it outside the hook's process group, so cancelling the
-    hook doesn't take the translation down with it. It inherits the hook's
-    environment, including the ``CLAUDE_PLUGIN_OPTION_*`` values.
+    新开进程会话，它就不在钩子的进程组里，钩子被取消也带不走它。
+    环境变量原样继承，包括 CLAUDE_PLUGIN_OPTION_* 里的用户配置。
     """
-    os.makedirs(state_dir(), mode=0o700, exist_ok=True)
     subprocess.Popen(
-        [sys.executable, os.path.join(PLUGIN_ROOT, "skill_zh"), "translate"],
-        cwd=state_dir(),
+        [sys.executable, os.path.join(plugin_root(), "skill_zh"), "translate"],
+        cwd=ensure_state_dir(),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

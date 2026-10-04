@@ -1,14 +1,10 @@
 """
-Persistent state for skill-zh: the state directory, debug log, run lock, and
-per-skill records of the original SKILL.md and the translation we wrote.
+持久状态：状态目录、日志、翻译锁，以及每个 skill 的原件和译文记录。
 
-State deliberately lives outside the plugin: ``${CLAUDE_PLUGIN_ROOT}`` is
-replaced on every update and ``${CLAUDE_PLUGIN_DATA}`` is deleted on
-uninstall, but the backups must survive both so ``restore`` keeps working
-after the plugin is gone.
+状态故意不放在插件目录里：${CLAUDE_PLUGIN_ROOT} 每次更新都会换，
+${CLAUDE_PLUGIN_DATA} 卸载时会被删，而备份得两者都扛得住，卸载后 restore 还要能用。
 
-Every path is resolved per call rather than cached at import time, so tests
-can point the module at a temporary directory through environment variables.
+所有路径都在调用时现算，不在导入时缓存，这样测试可以用环境变量把它们指到临时目录。
 """
 
 from __future__ import annotations
@@ -19,41 +15,25 @@ import os
 from datetime import datetime
 from typing import Iterator
 
+from skill_zh.config import claude_config_dir, env_path
+
 try:
     import fcntl
-except ImportError:  # Windows has no flock; skill-zh doesn't support it anyway.
+except ImportError:  # Windows 没有 flock；skill-zh 本来也不支持 Windows
     fcntl = None
 
-# Rotate the debug log past this size so it can't grow without bound.
+# 日志超过这个大小就轮转一次，免得无限增长
 LOG_MAX_BYTES = 1024 * 1024
 
 
-def _env_path(name: str) -> str | None:
-    # An empty value counts as unset, so `FOO=` in a shell profile doesn't
-    # silently resolve paths against the filesystem root.
-    value = os.environ.get(name, "").strip()
-    return os.path.expanduser(value) if value else None
-
-
-def claude_config_dir() -> str:
-    """Claude Code's config directory: ``$CLAUDE_CONFIG_DIR`` or ``~/.claude``."""
-    return _env_path("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
-
-
 def state_dir() -> str:
-    """Return the state directory.
-
-    Resolution precedence (highest first):
-      1. ``SKILL_ZH_STATE_DIR``          — explicit override, used by tests
-      2. ``$CLAUDE_CONFIG_DIR/skill-zh``
-      3. ``~/.claude/skill-zh``
-    """
-    return _env_path("SKILL_ZH_STATE_DIR") or os.path.join(claude_config_dir(), "skill-zh")
+    """状态目录。优先级：SKILL_ZH_STATE_DIR（测试用）> $CLAUDE_CONFIG_DIR/skill-zh > ~/.claude/skill-zh。"""
+    return env_path("SKILL_ZH_STATE_DIR") or os.path.join(claude_config_dir(), "skill-zh")
 
 
-def _ensure_state_dir() -> str:
+def ensure_state_dir() -> str:
+    """确保状态目录存在并返回它。新建时权限 0700：备份和日志在共用机器上不该让别人看。"""
     path = state_dir()
-    # 0700: backups and logs are nobody else's business on a shared machine.
     os.makedirs(path, mode=0o700, exist_ok=True)
     return path
 
@@ -63,9 +43,9 @@ def log_path() -> str:
 
 
 def debug_log(message: str) -> None:
-    """Append a timestamped line to the log. Never raises: logging must not break a hook."""
+    """往日志追加一行。永远不抛异常：写日志失败不能把钩子搞挂。"""
     try:
-        _ensure_state_dir()
+        ensure_state_dir()
         path = log_path()
         try:
             if os.path.getsize(path) > LOG_MAX_BYTES:
@@ -82,16 +62,15 @@ def debug_log(message: str) -> None:
 
 @contextlib.contextmanager
 def exclusive_lock() -> Iterator[bool]:
-    """Try to become the only process translating; yield whether that worked.
+    """争一个「只有我在翻译」的锁，yield 是否争到了。
 
-    Several sessions can start at once and each fires the SessionStart hook.
-    The lock is a non-blocking ``flock`` so a loser returns immediately instead
-    of queueing, and the kernel releases it if the holder dies mid-run.
+    几个会话同时打开时，每个都会触发 SessionStart 钩子。用非阻塞的 flock：
+    没争到的立刻放弃而不是排队等；持锁进程中途死掉的话，内核会自动释放。
     """
     if fcntl is None:
         yield True
         return
-    fd = os.open(os.path.join(_ensure_state_dir(), "translate.lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    fd = os.open(os.path.join(ensure_state_dir(), "translate.lock"), os.O_RDWR | os.O_CREAT, 0o600)
     try:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -100,33 +79,32 @@ def exclusive_lock() -> Iterator[bool]:
             return
         yield True
     finally:
-        os.close(fd)  # Closing the descriptor drops the flock.
+        os.close(fd)  # 关掉描述符，flock 就释放了
 
 
 def _record_base(skill_path: str) -> str:
-    # The folder name keeps records readable; the path hash keeps two skills that
-    # share a folder name in different roots from overwriting each other.
+    # 文件夹名让记录可读；路径哈希让不同目录下同名的 skill 不会互相覆盖
     digest = hashlib.sha1(skill_path.encode("utf-8")).hexdigest()[:10]
     name = os.path.basename(os.path.dirname(skill_path))
     return os.path.join(state_dir(), "originals", f"{name}-{digest}")
 
 
 def backup_path(skill_path: str) -> str:
-    """The untranslated copy of ``skill_path``, used by ``restore``."""
+    """这个 skill 翻译前的完整原件，restore 用它。"""
     return _record_base(skill_path) + ".md"
 
 
 def translation_path(skill_path: str) -> str:
-    """The description we wrote into ``skill_path``.
+    """我们写进这个 skill 的译文。
 
-    It is how a translation is recognised as ours: the file counts as
-    translated only while its description still equals this text.
+    判断「是不是我们翻的」就靠它：文件里的简介和这份记录一字不差才算已汉化。
     """
     return _record_base(skill_path) + ".zh.txt"
 
 
 def save_backup(skill_path: str, original_text: str, translation: str) -> None:
-    os.makedirs(os.path.join(state_dir(), "originals"), mode=0o700, exist_ok=True)
+    originals = os.path.join(ensure_state_dir(), "originals")
+    os.makedirs(originals, mode=0o700, exist_ok=True)
     for path, content in ((backup_path(skill_path), original_text), (translation_path(skill_path), translation)):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)

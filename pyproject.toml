@@ -1,4 +1,4 @@
-# Tool configuration only: skill-zh ships as a Claude Code plugin, not a Python package.
+# 只放工具配置：skill-zh 以 Claude Code 插件的形式发布，不是 Python 包。
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

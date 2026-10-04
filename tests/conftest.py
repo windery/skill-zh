@@ -9,8 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 BODY = "\n# Title\n\nBody line with description: not a key\n"
 
-# Every description shape found in real skills, each meaning
-# "Do the thing. Use when asked." (modulo whitespace).
+# 真实 skill 里见过的各种 description 写法，意思都是 "Do the thing. Use when asked."（空白不计）
 VARIANTS = {
     "plain": "---\nname: a\ndescription: Do the thing. Use when asked.\n---" + BODY,
     "double-quoted": '---\nname: a\ndescription: "Do the thing. Use when asked."\n---' + BODY,
@@ -21,34 +20,38 @@ VARIANTS = {
         "---\nname: a\ndescription: Do the thing.\n  Use when asked.\ndisable-model-invocation: true\n---" + BODY
     ),
     "crlf": "---\r\nname: a\r\ndescription: Do the thing. Use when asked.\r\n---\r\n# Title\r\n",
+    "crlf mid-field": (
+        "---\r\nname: a\r\ndescription: Do the thing. Use when asked.\r\nlicense: MIT\r\n---\r\n# Title\r\n"
+    ),
+    "bom": "﻿---\nname: a\ndescription: Do the thing. Use when asked.\n---" + BODY,
 }
 
 
 def body(text):
-    """Everything after the frontmatter."""
+    """frontmatter 之后的全部内容。"""
     return text.split("---", 2)[2]
 
 
 @pytest.fixture(params=["pyyaml", "fallback"])
 def yaml_mode(request, monkeypatch):
-    """Run a test once with PyYAML and once with the built-in fallback parser."""
+    """同一个测试跑两遍：一遍用 PyYAML，一遍用内置的简易解析。"""
     if request.param == "pyyaml":
         pytest.importorskip("yaml")
     else:
-        monkeypatch.setitem(sys.modules, "yaml", None)  # makes `import yaml` raise ImportError
+        monkeypatch.setitem(sys.modules, "yaml", None)  # 让 `import yaml` 抛 ImportError
     return request.param
 
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    """Isolate every path skill-zh touches inside tmp_path."""
+    """把 skill-zh 会碰的所有路径都隔离到 tmp_path 里。"""
     skills = tmp_path / "skills"
     skills.mkdir()
     monkeypatch.setenv("SKILL_ZH_SKILL_DIRS", str(skills))
     monkeypatch.setenv("SKILL_ZH_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
     for key in list(os.environ):
-        if key.startswith("CLAUDE_PLUGIN_OPTION_") or key == "SKILL_ZH_CHILD":
+        if key.startswith("CLAUDE_PLUGIN_OPTION_") or key in ("SKILL_ZH_CHILD", "CLAUDE_PLUGIN_ROOT"):
             monkeypatch.delenv(key)
     return tmp_path
 
@@ -66,7 +69,7 @@ def make_skill(env):
 
 @pytest.fixture
 def fake_translate():
-    """Stand-in for translator.translate that records calls and never touches the network."""
+    """代替 translator.translate：记录每次调用，不碰网络。"""
     calls = []
 
     def translate(descriptions, model):

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.1 - 2026-10-03
+
+### Fixed
+
+- `restore` no longer stops at the first file it cannot write; each failure is reported with its skill name.
+- CRLF files keep their line endings, and a UTF-8 BOM is recognised and kept.
+- Skills whose folder name contains a space are translated. Batch keys are now plain indices, so skill names and paths never reach the model.
+- A file changed while its translation was running is left alone and translated again next time, instead of being overwritten with the stale copy.
+- `restore` also covers skills listed in `exclude`.
+- Replies that are not mostly Chinese (refusals, half-translated text) are rejected and retried.
+- The `synced/` and `.system/` subdirectories are skipped explicitly rather than by accident of layout.
+- Without PyYAML, the rewrite check compares every other top-level field line by line.
+
+### Changed
+
+- Comments and docstrings are in Chinese.
+- `__version__` is read from plugin.json; `commands.status` and the `run` alias of `translate` are gone.
+- README documents the fourth status (无简介), that a run which misses the lock does not queue, and which hand edits are left alone.
+
 ## 0.3.0 - 2026-10-02
 
 ### Changed
